@@ -19,13 +19,13 @@ async function main() {
   try {
     const archiveFileName = await download(URL, PATH);
     const xmlFileName = unzipArchive(`${PATH}/${archiveFileName}.zip`, PATH);
-    const decodedXml = decodeXml(`${PATH}/${xmlFileName}`);
+    const decodedXml = decodeXmlFile(`${PATH}/${xmlFileName}`);
   } catch (error) {
     console.log("error inside main: ", error);
   }
 }
 
-main().catch((err) => console.log(err));
+main();
 
 function download(url, dest) {
   return new Promise((resolve, reject) => {
@@ -62,7 +62,7 @@ function unzipArchive(src, dest) {
   return zip.getEntries()[0].entryName;
 }
 
-function decodeXml(fileName) {
+function decodeXmlFile(fileName) {
   const data = fs.readFileSync(fileName);
   return iconv.decode(data, "win1251");
 }
