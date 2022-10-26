@@ -1,16 +1,18 @@
 {
   "name": "xml-parser",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "check name ^^",
+  "main": "index.mjs",
   "scripts": {
+    "start": "node index.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "Dima Pasumansky",
   "license": "ISC",
   "dependencies": {
     "adm-zip": "^0.5.9",
-    "iconv-lite": "^0.6.3"
+    "iconv-lite": "^0.6.3",
+    "node-fetch": "^3.2.10"
   }
 }

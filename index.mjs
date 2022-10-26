@@ -1,58 +1,24 @@
-import path, { dirname } from "path";
-import { fileURLToPath } from "url";
-import crypto from "crypto";
-import http from "http";
-import fs from "fs";
+import path, { dirname } from 'path';
+import { fileURLToPath } from 'url';
+import crypto from 'crypto';
+import fs from 'fs';
 
-import iconv from "iconv-lite";
-import AdmZip from "adm-zip";
+import fetch from 'node-fetch';
+import iconv from 'iconv-lite';
+import AdmZip from 'adm-zip';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const URL = "http://www.cbr.ru/s/newbik";
-const PATH = path.join(__dirname, "downloads");
+const PATH = path.join(__dirname, 'downloads');
+const URL = 'http://www.cbr.ru/s/newbik';
 
-let fileName = "";
+async function downloadFile(url, path) {
+  const res = await fetch(url);
+  const fileStream = fs.createWriteStream(path);
 
-async function main() {
-  fs.mkdirSync(PATH, { recursive: true });
-
-  try {
-    const archiveFileName = await download(URL, PATH);
-    const xmlFileName = unzipArchive(`${PATH}/${archiveFileName}.zip`, PATH);
-    const decodedXml = decodeXmlFile(`${PATH}/${xmlFileName}`);
-  } catch (error) {
-    console.log("error inside main: ", error);
-  }
-}
-
-main();
-
-function download(url, dest) {
   return new Promise((resolve, reject) => {
-    const request = http.get(url, (response) => {
-      if (response.statusCode === 200) {
-        fileName = crypto.randomBytes(4).toString("hex");
-
-        const file = fs.createWriteStream(dest + `/${fileName}.zip`, { flags: "wx", });
-
-        file.on("finish", () => resolve(fileName));
-        file.on("error", (err) => {
-          file.close();
-          if (err.code === "EEXIST") reject("File already exists");
-          else fs.unlink(dest, () => reject(err.message));
-        });
-
-        response.pipe(file);
-
-      } else if (response.statusCode === 302 || response.statusCode === 301) {
-        download("http://www.cbr.ru" + response.headers.location, dest).then(() => resolve(fileName));
-
-      } else {
-        reject(`Server responded with ${response.statusCode}: ${response.statusMessage}`);
-      }
-    });
-
-    request.on("error", (err) => reject(err.message));
+    res.body.pipe(fileStream);
+    res.body.on('error', reject);
+    fileStream.on('finish', resolve);
   });
 }
 
@@ -64,12 +30,49 @@ function unzipArchive(src, dest) {
 
 function decodeXmlFile(fileName) {
   const data = fs.readFileSync(fileName);
-  return iconv.decode(data, "win1251");
+  return iconv.decode(data, 'win1251');
 }
 
-function parseXmlFile(str) {
-  let accounts = [];
+const ENTRIES_RE = /<BICDirectoryEntry BIC="\d{9}">([\s\S]*?)<\/BICDirectoryEntry>/gm;
+const ACCOUNTS_RE = /Account="(\d{20})"/g;
+const BIC_RE = /<BICDirectoryEntry BIC="(\d{9})">/;
+const ENTRY_NAME_RE = /ParticipantInfo NameP="(.*?)" /;
+
+function parseXmlFile(xmlInput) {
+  let results = [];
+
+  const bicDirEntries = xmlInput.match(ENTRIES_RE);
+  const entriesWithAcc = bicDirEntries.filter((entry) => entry.includes('Account'));
+
+  for (let entry of entriesWithAcc) {
+    const accounts = [...entry.matchAll(ACCOUNTS_RE)];
+
+    for (const account of accounts) {
+      const entryBIC = entry.match(BIC_RE)[1];
+      const entryName = entry.match(ENTRY_NAME_RE)[1];
+
+      results.push({
+        bic: entryBIC,
+        name: entryName,
+        corrAccount: account[1],
+      });
+    }
+  }
+  return results;
 }
 
-// const re1 = /\s(BIC="\d{9}")/gm
-// const re2 = /(<BICDirectoryEntry (BIC="\d{9}")><ParticipantInfo (NameP="\D*") )/gm
+async function main() {
+  fs.mkdirSync(PATH, { recursive: true });
+
+  const fileName = crypto.randomBytes(4).toString('hex');
+
+  await downloadFile(URL, `${PATH}/${fileName}.zip`);
+  const xmlFileName = unzipArchive(`${PATH}/${fileName}.zip`, PATH);
+  const decodedXml = decodeXmlFile(`${PATH}/${xmlFileName}`);
+  return parseXmlFile(decodedXml);
+}
+
+main().catch((err) => {
+  console.log(err);
+  process.exit(1);
+});
