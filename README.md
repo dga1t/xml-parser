@@ -1,4 +1,3 @@
-# xml-parser
 ## Usage
 ```
 npm i
