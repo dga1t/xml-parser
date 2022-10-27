@@ -36,18 +36,18 @@ function decode(fileName) {
   return iconv.decode(data, 'win1251');
 }
 
-const ENTRIES_RE = /<BICDirectoryEntry BIC="\d{9}">([\s\S]*?)<\/BICDirectoryEntry>/gm;
-const ACCOUNTS_RE = /Account="(\d{20})"/g;
-const BIC_RE = /<BICDirectoryEntry BIC="(\d{9})">/;
-const ENTRY_NAME_RE = /ParticipantInfo NameP="(.*?)" /;
-
 function parse(xmlInput) {
   let results = [];
+
+  const ENTRIES_RE = /<BICDirectoryEntry BIC="\d{9}">([\s\S]*?)<\/BICDirectoryEntry>/gm;
+  const ACCOUNTS_RE = /Account="(\d{20})"/g;
+  const BIC_RE = /<BICDirectoryEntry BIC="(\d{9})">/;
+  const ENTRY_NAME_RE = /ParticipantInfo NameP="(.*?)" /;
 
   const bicDirEntries = xmlInput.match(ENTRIES_RE);
   const entriesWithAcc = bicDirEntries.filter((entry) => entry.includes('Account'));
 
-  for (let entry of entriesWithAcc) {
+  for (const entry of entriesWithAcc) {
     const accounts = [...entry.matchAll(ACCOUNTS_RE)];
 
     for (const account of accounts) {
