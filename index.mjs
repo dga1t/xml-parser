@@ -1,6 +1,5 @@
 import path, { dirname } from 'path';
 import { fileURLToPath } from 'url';
-import crypto from 'crypto';
 import fs from 'fs';
 
 import fetch from 'node-fetch';
@@ -11,24 +10,28 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PATH = path.join(__dirname, 'downloads');
 const URL = 'http://www.cbr.ru/s/newbik';
 
-async function downloadFile(url, path) {
+async function download(url, path) {
   const res = await fetch(url);
-  const fileStream = fs.createWriteStream(path);
+
+  if (res.status == 403) throw new Error('Forbidden');
+  
+  const fileName = res.headers.get('content-disposition').match(/filename=(.*);/)[1];
+  const fileStream = fs.createWriteStream(`${path}/${fileName}`);
 
   return new Promise((resolve, reject) => {
     res.body.pipe(fileStream);
     res.body.on('error', reject);
-    fileStream.on('finish', resolve);
+    fileStream.on('finish', resolve(fileName));
   });
 }
 
-function unzipArchive(src, dest) {
+function unzip(src, path) {
   const zip = new AdmZip(src);
-  zip.extractAllTo(dest);
+  zip.extractAllTo(path);
   return zip.getEntries()[0].entryName;
 }
 
-function decodeXmlFile(fileName) {
+function decode(fileName) {
   const data = fs.readFileSync(fileName);
   return iconv.decode(data, 'win1251');
 }
@@ -38,7 +41,7 @@ const ACCOUNTS_RE = /Account="(\d{20})"/g;
 const BIC_RE = /<BICDirectoryEntry BIC="(\d{9})">/;
 const ENTRY_NAME_RE = /ParticipantInfo NameP="(.*?)" /;
 
-function parseXmlFile(xmlInput) {
+function parse(xmlInput) {
   let results = [];
 
   const bicDirEntries = xmlInput.match(ENTRIES_RE);
@@ -64,12 +67,11 @@ function parseXmlFile(xmlInput) {
 async function main() {
   fs.mkdirSync(PATH, { recursive: true });
 
-  const fileName = crypto.randomBytes(4).toString('hex');
-
-  await downloadFile(URL, `${PATH}/${fileName}.zip`);
-  const xmlFileName = unzipArchive(`${PATH}/${fileName}.zip`, PATH);
-  const decodedXml = decodeXmlFile(`${PATH}/${xmlFileName}`);
-  return parseXmlFile(decodedXml);
+  const zipFileName = await download(URL, PATH);
+  await new Promise(r => setTimeout(r, 1000));
+  const xmlFileName = unzip(`${PATH}/${zipFileName}`, PATH);
+  const decodedXml = decode(`${PATH}/${xmlFileName}`);
+  return parse(decodedXml);
 }
 
 main().catch((err) => {
